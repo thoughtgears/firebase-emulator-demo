@@ -1,0 +1,22 @@
+{
+  "recommendations": [
+    // Docker support
+    "ms-azuretools.vscode-docker",
+
+    // JavaScript/React development
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+
+    // Firebase
+    "toba.vsfire",
+
+    // General utilities
+    "christian-kohler.path-intellisense",
+    "eamodio.gitlens",
+    "usernamehw.errorlens",
+
+    // Claude Code (if using)
+    "anthropic.claude-code"
+  ]
+}

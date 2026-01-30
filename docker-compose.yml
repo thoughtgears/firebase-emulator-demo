@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # Firebase Emulator (Auth, Firestore, Functions, Hosting)
+  firebase-emulator:
+    build:
+      context: ./firebase
+      dockerfile: Dockerfile
+    container_name: teamnotes-firebase-emulator
+    ports:
+      - "4000:4000"   # Emulator UI
+      - "4400:4400"   # Emulator Hub
+      - "5001:5001"   # Cloud Functions
+      - "5002:5002"   # Hosting
+      - "8080:8080"   # Firestore
+      - "9099:9099"   # Auth
+    environment:
+      - FIREBASE_PROJECT=teamnotes-demo
+      - DATA_DIRECTORY=/firebase/data
+    volumes:
+      # Mount functions directory for hot reload
+      - ./firebase/functions:/firebase/functions
+      # Mount rules for instant updates
+      - ./firebase/firestore.rules:/firebase/firestore.rules:ro
+      - ./firebase/firestore.indexes.json:/firebase/firestore.indexes.json:ro
+      # Mount data directory for persistence
+      - ./firebase/data:/firebase/data
+      # Named volume for node_modules (performance on Mac/Windows)
+      - firebase_functions_node_modules:/firebase/functions/node_modules
+    networks:
+      - teamnotes-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Node.js API (Cloud Run simulation)
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: teamnotes-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - FIREBASE_PROJECT_ID=teamnotes-demo
+      # Connect to Firebase emulator (internal Docker network)
+      - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
+      - FIRESTORE_EMULATOR_HOST=firebase-emulator:8080
+    volumes:
+      # Mount source for development
+      - ./api/src:/app/src
+    networks:
+      - teamnotes-network
+    depends_on:
+      firebase-emulator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: teamnotes-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      # API Configuration
+      - VITE_API_URL=http://localhost:3000
+
+      # Firebase Configuration (for emulator)
+      - VITE_FIREBASE_API_KEY=demo-api-key
+      - VITE_FIREBASE_AUTH_DOMAIN=teamnotes-demo.firebaseapp.com
+      - VITE_FIREBASE_PROJECT_ID=teamnotes-demo
+      - VITE_FIREBASE_STORAGE_BUCKET=teamnotes-demo.appspot.com
+      - VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
+      - VITE_FIREBASE_APP_ID=1:123456789:web:abcdef123456
+
+      # Emulator Configuration
+      - VITE_USE_EMULATOR=true
+      - VITE_EMULATOR_HOST=localhost
+    volumes:
+      # Mount source for hot reload
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.js:/app/vite.config.js
+      # Named volume for node_modules (performance on Mac/Windows)
+      - frontend_node_modules:/app/node_modules
+    networks:
+      - teamnotes-network
+    depends_on:
+      firebase-emulator:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+networks:
+  teamnotes-network:
+    driver: bridge
+
+volumes:
+  firebase_functions_node_modules:
+  frontend_node_modules:

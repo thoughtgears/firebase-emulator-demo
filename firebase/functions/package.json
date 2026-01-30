@@ -1,0 +1,26 @@
+{
+  "name": "teamnotes-functions",
+  "version": "1.0.0",
+  "description": "Cloud Functions for TeamNotes demo",
+  "main": "src/index.js",
+  "scripts": {
+    "lint": "eslint --ext .js src/",
+    "lint:fix": "eslint --ext .js src/ --fix",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.1",
+    "firebase-functions": "^6.1.1"
+  },
+  "devDependencies": {
+    "eslint": "^9.16.0",
+    "eslint-config-google": "^0.14.0"
+  },
+  "private": true
+}

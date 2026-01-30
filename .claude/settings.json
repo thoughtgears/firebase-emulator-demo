@@ -1,0 +1,47 @@
+{
+  "description": "TeamNotes - Firebase Emulator + Docker monorepo demo project",
+  "project": {
+    "name": "TeamNotes Demo",
+    "type": "monorepo",
+    "structure": {
+      "frontend": "React + Vite (port 5173)",
+      "api": "Node.js + Express (port 3000)",
+      "firebase": "Firebase Emulator Suite",
+      "functions": "Cloud Functions for Firebase"
+    }
+  },
+  "conventions": {
+    "codeStyle": "JavaScript ES6+",
+    "formatting": "Prettier with ESLint",
+    "naming": "camelCase for variables, PascalCase for components",
+    "commits": "Conventional commits format"
+  },
+  "development": {
+    "mainCommand": "npm run dev",
+    "ports": {
+      "frontend": 5173,
+      "api": 3000,
+      "firebaseUI": 4000,
+      "firestore": 8080,
+      "auth": 9099,
+      "functions": 5001
+    },
+    "emulator": {
+      "project": "teamnotes-demo",
+      "dataDir": "firebase/data"
+    }
+  },
+  "architecture": {
+    "pattern": "Microservices with Firebase emulator",
+    "communication": "REST API + Firestore real-time",
+    "authentication": "Firebase Auth with JWT tokens",
+    "deployment": "Cloud Run (API) + Cloud Functions + Firebase Hosting"
+  },
+  "skills": [
+    "firebase-emulator",
+    "monorepo-structure",
+    "api-development",
+    "functions-development",
+    "docker-operations"
+  ]
+}
