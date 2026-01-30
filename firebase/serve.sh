@@ -44,7 +44,17 @@ EMULATOR_CMD="firebase emulators:start --project $FIREBASE_PROJECT"
 # Add data import/export if DATA_DIRECTORY is set
 if [ -n "$DATA_DIRECTORY" ]; then
   log_info "Data directory configured: $DATA_DIRECTORY"
-  EMULATOR_CMD="$EMULATOR_CMD --import=$DATA_DIRECTORY --export-on-exit=$DATA_DIRECTORY"
+
+  # Check if data directory has existing data to import
+  if [ -f "$DATA_DIRECTORY/export/firebase-export-metadata.json" ]; then
+    log_info "Found existing data, importing from ./$DATA_DIRECTORY/export..."
+  else
+    log_info "No existing data found, starting fresh (will export on exit)"
+  fi
+
+  # Always use both --import and --export-on-exit together
+  # Firebase requires --import when using --export-on-exit without a path
+  EMULATOR_CMD="$EMULATOR_CMD --import=./$DATA_DIRECTORY/export --export-on-exit"
 fi
 
 # Handle graceful shutdown

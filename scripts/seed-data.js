@@ -117,9 +117,28 @@ async function createUser(userData) {
 
 async function createNotes(userId, userEmail, notes) {
   try {
+    // Check existing note count for this user
+    const existingNotes = await db
+      .collection("notes")
+      .where("userId", "==", userId)
+      .get();
+
+    const existingCount = existingNotes.size;
+    const expectedCount = notes.length;
+
+    // Skip if user already has enough notes
+    if (existingCount >= expectedCount) {
+      console.log(
+        `✓ User ${userEmail} already has ${existingCount} notes (expected ${expectedCount}), skipping`
+      );
+      return;
+    }
+
+    // Create missing notes
+    const notesToCreate = notes.slice(existingCount);
     let createdCount = 0;
 
-    for (const noteData of notes) {
+    for (const noteData of notesToCreate) {
       await db.collection("notes").add({
         title: noteData.title,
         content: noteData.content,
@@ -131,7 +150,9 @@ async function createNotes(userId, userEmail, notes) {
       createdCount++;
     }
 
-    console.log(`✓ Created ${createdCount} notes for ${userEmail}`);
+    console.log(
+      `✓ Created ${createdCount} notes for ${userEmail} (had ${existingCount}, now has ${existingCount + createdCount})`
+    );
   } catch (error) {
     console.error(`✗ Failed to create notes for ${userEmail}:`, error.message);
     throw error;
@@ -140,6 +161,18 @@ async function createNotes(userId, userEmail, notes) {
 
 async function createSharedNote(ownerUid, sharedWithUid) {
   try {
+    // Check if a shared note already exists between these users
+    const existingSharedNotes = await db
+      .collection("notes")
+      .where("userId", "==", ownerUid)
+      .where("sharedWith", "array-contains", sharedWithUid)
+      .get();
+
+    if (existingSharedNotes.size > 0) {
+      console.log("✓ Shared note already exists, skipping");
+      return;
+    }
+
     await db.collection("notes").add({
       title: "Shared Project Plan",
       content:

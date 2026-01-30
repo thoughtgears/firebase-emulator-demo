@@ -6,7 +6,10 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Firebase
-firebase/data/
+firebase/data/*
+!firebase/data/export/
+firebase/data/export/*
+!firebase/data/export/.gitkeep
 .firebase/
 *-debug.log
 

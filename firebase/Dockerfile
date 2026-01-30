@@ -19,8 +19,8 @@ COPY functions ./functions
 COPY serve.sh ./serve.sh
 RUN chmod +x ./serve.sh
 
-# Create data directory for persistence
-RUN mkdir -p /firebase/data
+# Create data directory structure for persistence
+RUN mkdir -p /firebase/data/export
 
 # Expose emulator ports
 EXPOSE 4000 4400 5001 5002 8080 9099

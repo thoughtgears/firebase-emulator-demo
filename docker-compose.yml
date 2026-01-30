@@ -16,7 +16,7 @@ services:
       - "9099:9099"   # Auth
     environment:
       - FIREBASE_PROJECT=teamnotes-demo
-      - DATA_DIRECTORY=/firebase/data
+      - DATA_DIRECTORY=data
     volumes:
       # Mount functions directory for hot reload
       - ./firebase/functions:/firebase/functions
@@ -29,6 +29,7 @@ services:
       - firebase_functions_node_modules:/firebase/functions/node_modules
     networks:
       - teamnotes-network
+    stop_grace_period: 45s
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000"]
       interval: 30s
