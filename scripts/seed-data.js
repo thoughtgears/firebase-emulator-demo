@@ -13,9 +13,12 @@
 
 const admin = require("firebase-admin");
 
-// Configure for emulator
-process.env.FIRESTORE_EMULATOR_HOST = "localhost:8080";
-process.env.FIREBASE_AUTH_EMULATOR_HOST = "localhost:9099";
+// Configure for emulator (use environment variables if set, otherwise default to localhost)
+process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || "localhost:8080";
+process.env.FIREBASE_AUTH_EMULATOR_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST || "localhost:9099";
+
+console.log(`Using Firestore emulator: ${process.env.FIRESTORE_EMULATOR_HOST}`);
+console.log(`Using Auth emulator: ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`);
 
 // Initialize Firebase Admin
 admin.initializeApp({
