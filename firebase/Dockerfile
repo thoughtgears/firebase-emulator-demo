@@ -1,10 +1,10 @@
-FROM node:22-alpine
+FROM node:24-alpine
 
 # Install Java (required for Firestore emulator)
 RUN apk add --no-cache openjdk21-jre bash curl
 
 # Install Firebase CLI globally
-RUN npm install -g firebase-tools@13.23.1
+RUN npm install -g firebase-tools@15.30.1
 
 # Set working directory
 WORKDIR /firebase

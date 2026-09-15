@@ -32,13 +32,13 @@
   "author": "ThoughtGears",
   "license": "MIT",
   "devDependencies": {
-    "firebase-tools": "^13.23.1"
+    "firebase-tools": "^15.30.1"
   },
   "dependencies": {
     "firebase-admin": "^13.6.0"
   },
   "engines": {
-    "node": ">=22.0.0",
+    "node": ">=24.0.0",
     "npm": ">=10.0.0"
   }
 }

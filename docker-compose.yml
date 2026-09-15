@@ -107,7 +107,7 @@ services:
 
   # Data Seeder (runs once after emulator is healthy)
   seeder:
-    image: node:22-alpine
+    image: node:24-alpine
     container_name: teamnotes-seeder
     working_dir: /app
     environment:
