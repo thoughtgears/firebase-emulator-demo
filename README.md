@@ -2,6 +2,12 @@
 
 A comprehensive demo project showcasing Firebase Emulator + Docker + Cloud Run architecture in a monorepo setup.
 
+`firebase/Dockerfile` here builds its own emulator image (it needs a bundled `functions` directory and a different
+startup contract than a reusable base image can offer) rather than extending one. It's kept in version lockstep by
+hand with [thoughtgears/docker-firebase-emulator](https://github.com/thoughtgears/docker-firebase-emulator) — same
+firebase-tools, same Node base, same JRE — so this repo doubles as a real-world reference for the versions and
+Java requirements that image needs.
+
 ## 🎯 What This Demonstrates
 
 - **Firebase Emulator Suite** - Local development with Auth, Firestore, Functions, and Hosting
@@ -39,7 +45,7 @@ A comprehensive demo project showcasing Firebase Emulator + Docker + Cloud Run a
 ### Prerequisites
 
 - Docker Desktop (running)
-- Node.js 22+
+- Node.js 24+
 - npm 10+
 
 ### Setup

@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Docker Desktop installed and running
-- Node.js 22+ installed
+- Node.js 24+ installed
 - npm 10+ installed
 - Git (optional)
 
