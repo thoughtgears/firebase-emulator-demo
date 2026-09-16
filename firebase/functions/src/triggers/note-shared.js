@@ -1,5 +1,19 @@
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
+// FieldValue is imported from the modular "firebase-admin/firestore" entry
+// point rather than read off the `admin.firestore` namespace, because
+// `admin.firestore.FieldValue` is undefined inside the Functions emulator.
+//
+// The emulator's runtime (firebase-tools' functionsEmulatorRuntime) replaces
+// the cached "firebase-admin" module with a Proxy and resolves each property
+// through `Proxied.getOriginal`, which returns `value.bind(target)` for any
+// function that is not a constructor. In firebase-admin v13 the `firestore`
+// namespace is a function with no `.prototype`, so it takes exactly that
+// branch -- and a bound function carries none of the original's own
+// properties, so FieldValue, Timestamp, GeoPoint and FieldPath all vanish.
+// The submodule below is a different module object, so the proxy never
+// touches it. Outside the emulator both forms work.
+const { FieldValue } = require("firebase-admin/firestore");
 const { Logger } = require("../utils/logger");
 const config = require("../config");
 
@@ -71,7 +85,7 @@ exports.onNoteShared = onDocumentWritten(
         ownerId: afterData.userId,
         newlySharedUsers,
         removedUsers,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
       });
 
       logger.info("Activity log created", {
