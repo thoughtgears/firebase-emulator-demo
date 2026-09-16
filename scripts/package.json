@@ -1,0 +1,13 @@
+{
+  "name": "teamnotes-seeder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-shot data seeder for the TeamNotes demo, built into its own Docker image so `docker compose up` never touches the repo's root package.json.",
+  "main": "seed-data.js",
+  "dependencies": {
+    "firebase-admin": "13.10.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

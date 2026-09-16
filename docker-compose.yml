@@ -106,36 +106,23 @@ services:
         condition: service_healthy
 
   # Data Seeder (runs once after emulator is healthy)
+  # Builds its own image from ./scripts, with its own pinned package.json --
+  # it does not bind-mount anything from the repo root, so `docker compose
+  # up` cannot modify the working tree. See scripts/Dockerfile.
   seeder:
-    image: node:24-alpine
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile
     container_name: teamnotes-seeder
-    working_dir: /app
     environment:
+      - FIREBASE_PROJECT_ID=teamnotes-demo
       - FIRESTORE_EMULATOR_HOST=firebase-emulator:8080
       - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
-    volumes:
-      - ./package.json:/app/package.json
-      - ./scripts:/app/scripts
     networks:
       - teamnotes-network
     depends_on:
       firebase-emulator:
         condition: service_healthy
-    command: >
-      sh -c "
-      echo '🌱 Checking if data needs to be seeded...' &&
-      apk add --no-cache curl &&
-      npm install firebase-admin &&
-      sleep 5 &&
-      AUTH_USERS=$$(curl -s http://firebase-emulator:9099/identitytoolkit.googleapis.com/v1/projects/teamnotes-demo/accounts | grep -o '\"users\":\\[' | wc -l) &&
-      if [ \"$$AUTH_USERS\" -eq 0 ]; then
-        echo '📝 No users found, seeding data...' &&
-        node scripts/seed-data.js &&
-        echo '✅ Data seeded successfully!';
-      else
-        echo '✓ Data already exists, skipping seed.';
-      fi
-      "
 
 networks:
   teamnotes-network:
