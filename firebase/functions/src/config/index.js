@@ -1,5 +1,3 @@
-const { defineString } = require("firebase-functions/params");
-
 // Environment detection
 const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
 const projectId = process.env.GCLOUD_PROJECT || "teamnotes-demo";
@@ -11,14 +9,10 @@ const defaultFunctionOptions = {
   memory: "256MiB",
 };
 
-// Firestore configuration for emulator
-const firestoreHost = isEmulator ? "firebase-emulator:8080" : undefined;
-
 // Export configuration
 module.exports = {
   projectId,
   isEmulator,
-  firestoreHost,
   defaultFunctionOptions,
 
   // Function-specific configurations

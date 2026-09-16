@@ -1,41 +1,54 @@
-version: '3.8'
-
+# TeamNotes demo stack.
+#
+# The firebase-emulator service builds FROM the published
+# ghcr.io/thoughtgears/docker-firebase-emulator image (see
+# firebase/Dockerfile) and therefore inherits that image's port scheme:
+#
+#   nginx inside the container listens on <emulator port> + 1 and proxies
+#   back down to the emulator, which binds 127.0.0.1.
+#
+# So every mapping below is "host:<real port> -> container:<real port + 1>",
+# and anything on the compose network talks to the +1 port too. Host ports
+# are deliberately left equal to the emulators' real ports, because that is
+# what the Emulator UI tells a browser to connect to.
 services:
-  # Firebase Emulator (Auth, Firestore, Functions, Hosting)
+  # Firebase Emulator (Auth, Firestore, Functions) -- the published image
+  # with this demo's firebase.json, rules and functions/ layered on top.
   firebase-emulator:
     build:
       context: ./firebase
       dockerfile: Dockerfile
     container_name: teamnotes-firebase-emulator
     ports:
-      - "4000:4000"   # Emulator UI
-      - "4400:4400"   # Emulator Hub
-      - "5001:5001"   # Cloud Functions
-      - "5002:5002"   # Hosting
-      - "8080:8080"   # Firestore
-      - "9099:9099"   # Auth
+      - "4000:4001"   # Emulator UI
+      - "4400:4401"   # Emulator Hub
+      - "4600:4601"   # Logging
+      - "5001:5002"   # Cloud Functions
+      - "8080:8081"   # Firestore (HTTP/REST + WebChannel, used by browsers)
+      - "8082:9081"   # Firestore (gRPC, used by the Admin SDK)
+      - "9099:9100"   # Auth
     environment:
+      # Required by the image's serve.sh.
       - FIREBASE_PROJECT=teamnotes-demo
-      - DATA_DIRECTORY=data
-    volumes:
-      # Mount functions directory for hot reload
-      - ./firebase/functions:/firebase/functions
-      # Mount rules for instant updates
-      - ./firebase/firestore.rules:/firebase/firestore.rules:ro
-      - ./firebase/firestore.indexes.json:/firebase/firestore.indexes.json:ro
-      # Mount data directory for persistence
-      - ./firebase/data:/firebase/data
-      # Named volume for node_modules (performance on Mac/Windows)
-      - firebase_functions_node_modules:/firebase/functions/node_modules
+      - GCLOUD_PROJECT=teamnotes-demo
+      - FORCE_COLOR=true
+      # DATA_DIRECTORY is intentionally unset: the emulator starts empty and
+      # the seeder service repopulates it on every run, which keeps `docker
+      # compose up` a read-only operation with respect to the repo tree (no
+      # --export-on-exit writing back through a bind mount). See the README
+      # if you want persistence instead.
     networks:
       - teamnotes-network
     stop_grace_period: 45s
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000"]
-      interval: 30s
+      # Deliberately checks 4001, the nginx port, not 4000: that proves both
+      # the Emulator UI and the base image's proxy are up before the seeder,
+      # API and frontend are allowed to start.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:4001"]
+      interval: 10s
       timeout: 10s
-      retries: 5
-      start_period: 60s
+      retries: 30
+      start_period: 30s
 
   # Node.js API (Cloud Run simulation)
   api:
@@ -49,9 +62,12 @@ services:
       - NODE_ENV=development
       - PORT=3000
       - FIREBASE_PROJECT_ID=teamnotes-demo
-      # Connect to Firebase emulator (internal Docker network)
-      - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
-      - FIRESTORE_EMULATOR_HOST=firebase-emulator:8080
+      # Emulator addresses on the compose network. These are the nginx
+      # ports (real port + 1), because the emulators themselves only bind
+      # 127.0.0.1 inside their container. Firestore goes to the gRPC
+      # listener (9081) -- that is the transport the Admin SDK uses.
+      - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9100
+      - FIRESTORE_EMULATOR_HOST=firebase-emulator:9081
     volumes:
       # Mount source for development
       - ./api/src:/app/src
@@ -87,7 +103,9 @@ services:
       - VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
       - VITE_FIREBASE_APP_ID=1:123456789:web:abcdef123456
 
-      # Emulator Configuration
+      # Emulator Configuration. The browser reaches the emulators through
+      # the host port mappings above, so these stay the emulators' real
+      # port numbers -- the +1 offset is a container-side detail.
       - VITE_USE_EMULATOR=true
       - VITE_EMULATOR_HOST=localhost
     volumes:
@@ -116,8 +134,9 @@ services:
     container_name: teamnotes-seeder
     environment:
       - FIREBASE_PROJECT_ID=teamnotes-demo
-      - FIRESTORE_EMULATOR_HOST=firebase-emulator:8080
-      - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
+      # Same nginx-port reasoning as the api service above.
+      - FIRESTORE_EMULATOR_HOST=firebase-emulator:9081
+      - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9100
     networks:
       - teamnotes-network
     depends_on:
@@ -129,5 +148,4 @@ networks:
     driver: bridge
 
 volumes:
-  firebase_functions_node_modules:
   frontend_node_modules:

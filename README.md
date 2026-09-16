@@ -2,21 +2,42 @@
 
 A comprehensive demo project showcasing Firebase Emulator + Docker + Cloud Run architecture in a monorepo setup.
 
-`firebase/Dockerfile` here builds its own emulator image (it needs a bundled `functions` directory and a different
-startup contract than a reusable base image can offer) rather than extending one. It's kept in version lockstep by
-hand with [thoughtgears/docker-firebase-emulator](https://github.com/thoughtgears/docker-firebase-emulator) — same
-firebase-tools, same Node base, same JRE — so this repo doubles as a real-world reference for the versions and
-Java requirements that image needs.
+## Relationship to `docker-firebase-emulator`
+
+The emulator in this stack **is**
+[thoughtgears/docker-firebase-emulator](https://github.com/thoughtgears/docker-firebase-emulator).
+[`firebase/Dockerfile`](firebase/Dockerfile) is four lines of `COPY` on top of
+`FROM ghcr.io/thoughtgears/docker-firebase-emulator:15.30.1` — it adds this project's
+`firebase.json`, security rules, indexes and `functions/` directory at `/srv/firebase`,
+and inherits everything else: Node 24 on Alpine, the JRE the Firestore emulator needs,
+firebase-tools, the nginx proxy, and the `serve.sh` entrypoint.
+
+Nothing about running the emulator is reimplemented here. That is deliberate and it cuts
+both ways: this repo is the image's worked example *and* its integration test. If a new
+version of the image breaks its own startup contract, `docker compose up` in this repo
+fails, and we find out before anyone else does.
+
+Two things follow from consuming the image, and they are the two things most likely to
+trip you up if you copy this setup:
+
+- **Every port is offset by one on the container side.** nginx inside the image listens
+  on `<emulator port> + 1` and proxies down to the emulator, which binds `127.0.0.1`.
+  So compose maps `8080:8081`, `9099:9100` and so on, and services on the compose network
+  dial the `+1` port. See [Ports](#-ports) below.
+- **The image version is pinned, in one place.** The `FROM` line in `firebase/Dockerfile`
+  is the only version declaration. The image publishes a version tag and `main` but
+  no `latest`, so bump that line (and the table in this README) deliberately.
 
 ## 🎯 What This Demonstrates
 
-- **Firebase Emulator Suite** - Local development with Auth, Firestore, Functions, and Hosting
+- **Firebase Emulator Suite** - Local development with Auth, Firestore and Functions, served by the
+  published [`docker-firebase-emulator`](https://github.com/thoughtgears/docker-firebase-emulator) image
 - **Cloud Functions** - Event-driven functions triggered by Firestore changes
 - **Cloud Run API** - Node.js/Express API with Firebase Auth integration
 - **React Frontend** - Vite + React with Firebase SDK
 - **Docker Compose** - Multi-container orchestration for local development
 - **Monorepo Structure** - npm workspaces with shared dependencies
-- **Hot Reload** - Instant updates for frontend, API, and functions
+- **Hot Reload** - Instant updates for the frontend and API
 
 ## 🏗️ Architecture
 
@@ -30,15 +51,20 @@ Java requirements that image needs.
              │ (Auth, Firestore)                │ (with token)
              │                                  │
       ┌──────▼───────────────┐          ┌──────▼──────────┐
-      │  Firebase Emulator   │          │   Node.js API   │
-      │                      │          │    (Express)    │
-      │  • Auth (9099)       │          │                 │
-      │  • Firestore (8080)  │◄─────────┤  Verifies       │
-      │  • Functions (5001)  │  Admin   │  Firebase       │
-      │  • Hosting (5002)    │   SDK    │  Auth tokens    │
+      │ docker-firebase-     │          │   Node.js API   │
+      │ emulator image       │          │    (Express)    │
+      │ ┌──────────────────┐ │          │                 │
+      │ │ nginx (port + 1) │ │◄─────────┤  Verifies       │
+      │ └────────┬─────────┘ │  Admin   │  Firebase       │
+      │  • Auth (9099)       │   SDK    │  Auth tokens    │
+      │  • Firestore (8080)  │          │                 │
+      │  • Functions (5001)  │          │                 │
       │  • UI (4000)         │          │                 │
       └──────────────────────┘          └─────────────────┘
 ```
+
+Everything inside the emulator box comes from the published image; only the
+`firebase.json`, rules and `functions/` inside it belong to this repo.
 
 ## 🚀 Quick Start
 
@@ -66,6 +92,36 @@ That's it! The project includes automatic data seeding that runs when the emulat
 - **Emulator UI**: <http://localhost:4000>
 - **API**: <http://localhost:3000>
 - **API Health**: <http://localhost:3000/health>
+
+## 🔌 Ports
+
+The emulator container runs the `docker-firebase-emulator` image, whose nginx proxy
+listens on each emulator's real port **+ 1** and proxies back down to the emulator
+(which binds `127.0.0.1`). So the container side of every mapping is `+ 1`, while the
+host side stays equal to the emulator's real port — which is what the Emulator UI
+tells a browser to connect to.
+
+| Emulator | Host | Container (nginx) | Who uses it |
+| --- | --- | --- | --- |
+| Emulator UI | 4000 | 4001 | Browser; the compose health check |
+| Hub | 4400 | 4401 | firebase-tools |
+| Logging | 4600 | 4601 | Emulator UI logs tab |
+| Cloud Functions | 5001 | 5002 | Browser (callables) |
+| Firestore (HTTP) | 8080 | 8081 | Browser, via the Firebase JS SDK |
+| Firestore (gRPC) | 8082 | 9081 | `api` + `seeder`, via the Admin SDK |
+| Auth | 9099 | 9100 | Browser and `api` + `seeder` |
+
+Services on the compose network talk to the **container** ports, because the emulators
+themselves are only bound on loopback inside their container:
+
+```yaml
+FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9100
+FIRESTORE_EMULATOR_HOST=firebase-emulator:9081   # gRPC: the Admin SDK's transport
+```
+
+The full port table for the emulators this demo does not enable (pubsub, database,
+storage, hosting) is in the
+[image's README](https://github.com/thoughtgears/docker-firebase-emulator#docker-compose).
 
 ### Test Credentials
 
@@ -191,9 +247,9 @@ fetch("http://localhost:3000/api/user/stats", {
 
 ## 🐳 Docker Services
 
-| Service | Ports | Purpose |
+| Service | Host ports | Purpose |
 | --------- | ------- | --------- |
-| firebase-emulator | 4000, 8080, 9099, 5001 | Firebase services |
+| firebase-emulator | 4000, 4400, 4600, 5001, 8080, 8082, 9099 | `docker-firebase-emulator` image + this repo's Firebase project |
 | api | 3000 | REST API server |
 | frontend | 5173 | Vite dev server |
 | seeder | - | Auto-seeds data on startup (exits after completion) |
@@ -210,8 +266,8 @@ fetch("http://localhost:3000/api/user/stats", {
 ```bash
 npm run dev              # Start all services (auto-seeds if needed)
 npm run stop             # Stop all services
-npm run dev:clean        # Clean restart (delete data, will auto-seed)
-npm run dev:build        # Rebuild containers
+npm run dev:clean        # Remove containers and named volumes
+npm run dev:build        # Rebuild containers (needed after editing functions/)
 npm run seed             # Manually seed test data (if needed)
 
 npm run logs:emulator    # View emulator logs
@@ -261,11 +317,19 @@ Perfect walkthrough for presentations:
 
 ### Hot Reload
 
-All services support hot reload:
+- **Frontend**: Vite HMR (source is bind-mounted)
+- **API**: Source files bind-mounted
+- **Functions**: **no** hot reload — run `npm run dev:build` after editing
+  `firebase/functions/`
 
-- **Frontend**: Vite HMR
-- **API**: Source files mounted
-- **Functions**: JavaScript hot reload
+Functions source is baked into the emulator image rather than bind-mounted, and that is
+on purpose. Bind-mounting it means the container's `npm install` writes `node_modules`
+and a lockfile back onto your working tree; the alternative — a named volume for
+`node_modules` — is worse, because docker-compose creates that volume as an *empty
+directory* before the entrypoint runs, which is exactly how this repo once shipped a
+Functions emulator that came up with no `firebase-functions` installed and failed
+silently. Installing from a committed lockfile at image build time has neither failure
+mode, at the cost of a rebuild when you change function code.
 
 ### Adding Features
 
@@ -273,7 +337,15 @@ All services support hot reload:
 
 1. Create trigger in `firebase/functions/src/triggers/`
 2. Export in `firebase/functions/src/index.js`
-3. Changes reload automatically
+3. `npm run dev:build` to rebuild the emulator image
+
+> **Writing triggers:** use `require("firebase-admin/firestore")` for `FieldValue`,
+> `Timestamp`, `GeoPoint` and `FieldPath` rather than reading them off
+> `admin.firestore`. The Functions emulator replaces the cached `firebase-admin`
+> module with a proxy that returns `fn.bind(target)` for non-constructor functions, and
+> a bound function drops the original's own properties — so `admin.firestore.FieldValue`
+> is `undefined` inside the emulator even though it works fine under plain `node`. See
+> the comment in `firebase/functions/src/triggers/note-shared.js`.
 
 #### New API Endpoint
 
@@ -288,7 +360,8 @@ All services support hot reload:
 
 ### Firestore Security Rules
 
-Rules are in `firebase/firestore.rules` and hot-reload.
+Rules are in `firebase/firestore.rules`. They are copied into the image, so rebuild
+(`npm run dev:build`) after changing them.
 
 Test rules at: <http://localhost:4000/firestore>
 
@@ -310,25 +383,33 @@ The seeder service automatically populates the emulator with test data when need
 - Sample notes for each user
 - One shared note demonstrating the Cloud Function trigger
 
+**Persistence (opt-in):** the stack deliberately starts empty each run, so that `docker
+compose up` stays read-only with respect to your working tree. The image supports
+`--import` / `--export-on-exit` via its `DATA_DIRECTORY` variable; to use it, set
+`DATA_DIRECTORY=data` on the `firebase-emulator` service and bind-mount a writable
+`./firebase/data:/srv/firebase/data`. That directory is gitignored.
+
 **Environment handling:**
 
 The seed script adapts to its environment:
 
-- **In Docker**: Uses `firebase-emulator:8080` (service name)
-- **Locally**: Uses `localhost:8080` (when running `npm run seed` directly)
+- **In Docker**: uses the service name and the nginx ports (`+ 1`), because the
+  emulators bind `127.0.0.1` inside their container
+- **Locally**: uses `localhost:8080` / `localhost:9099` (when running `npm run seed`
+  directly against the host port mappings)
 
 This is controlled via environment variables in `docker-compose.yml`:
 
 ```yaml
 environment:
-  - FIRESTORE_EMULATOR_HOST=firebase-emulator:8080
-  - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
+  - FIRESTORE_EMULATOR_HOST=firebase-emulator:9081   # 8080 + nginx gRPC offset
+  - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9100 # 9099 + 1
 ```
 
 **Viewing seeder logs:**
 
 ```bash
-docker-compose logs seeder
+docker compose logs seeder
 ```
 
 ## 🎓 Learning Resources
@@ -379,7 +460,6 @@ const decodedToken = await admin.auth().verifyIdToken(token);
 
 ```bash
 firebase deploy --only functions
-firebase deploy --only hosting
 firebase deploy --only firestore:rules
 ```
 
@@ -392,13 +472,14 @@ gcloud run deploy teamnotes-api \
   --allow-unauthenticated
 ```
 
-### Frontend (Firebase Hosting)
+### Frontend
 
-```bash
-cd frontend
-npm run build
-firebase deploy --only hosting
-```
+The demo serves the frontend from the Vite dev server, so `firebase/firebase.json`
+carries no `hosting` block — add one (and run `npm run build` in `frontend/` first) if
+you want to deploy it to Firebase Hosting. Note that if you also want the *hosting
+emulator*, it has to stay off its default proxy collision: the
+`docker-firebase-emulator` image's nginx already listens on 5002 (Cloud Functions
+`5001 + 1`), so give the hosting emulator its documented 6000 and map `6000:6001`.
 
 ## 🐛 Troubleshooting
 
@@ -411,18 +492,19 @@ lsof -ti:4000 | xargs kill -9
 ### Services won't start
 
 ```bash
-docker-compose logs firebase-emulator
-docker-compose ps
+docker compose logs firebase-emulator
+docker compose ps
 ```
 
 ### Clean slate
 
 ```bash
-npm run dev:clean
-rm -rf firebase/data
-npm run dev
-npm run seed
+npm run dev:clean   # docker compose down -v
+npm run dev:build
 ```
+
+`docker compose up` never writes to the repo working tree, so there is nothing else to
+clean up: the emulator starts empty every run and the seeder repopulates it.
 
 ### Functions not triggering
 

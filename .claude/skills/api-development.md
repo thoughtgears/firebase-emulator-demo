@@ -240,7 +240,7 @@ npm run logs:api
 Or directly:
 
 ```bash
-docker-compose logs -f api
+docker compose logs -f api
 ```
 
 ## Testing with curl

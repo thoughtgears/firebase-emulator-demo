@@ -25,7 +25,7 @@
    ```
 
    This starts:
-   - Firebase Emulator (ports 4000, 5001, 8080, 9099)
+   - Firebase Emulator (host ports 4000, 4400, 4600, 5001, 8080, 8082, 9099)
    - API Server (port 3000)
    - Frontend (port 5173)
 
@@ -71,9 +71,13 @@
 │ • Auth       │  │ Verifies     │
 │ • Firestore  │◄─┤ Firebase     │
 │ • Functions  │  │ tokens       │
-│ • Hosting    │  │              │
+│ • nginx +1   │  │              │
 └──────────────┘  └──────────────┘
 ```
+
+The emulator container is the published `docker-firebase-emulator` image with this
+repo's Firebase project layered on top. Its nginx proxy listens on each emulator's
+real port + 1, so compose maps `8080:8081`, `9099:9100` and so on.
 
 ## What You Can Demo
 
@@ -118,21 +122,18 @@ lsof -ti:4000 | xargs kill -9   # Kill process on port 4000
 
 ### Services won't start
 ```bash
-docker-compose logs firebase-emulator
-docker-compose ps
+docker compose logs firebase-emulator
+docker compose ps
 ```
 
 ### Changes not reflecting
-- Frontend & API: Changes auto-reload
-- Functions: Changes auto-reload (JavaScript only)
-- Rules: Changes auto-apply
+- Frontend & API: Changes auto-reload (source is bind-mounted)
+- Functions and rules: baked into the emulator image — `npm run dev:build`
 
 ### Clean slate
 ```bash
-npm run dev:clean
-rm -rf firebase/data
-npm run dev
-npm run seed
+npm run dev:clean   # docker compose down -v
+npm run dev:build
 ```
 
 ## Next Steps
@@ -165,4 +166,5 @@ This demo showcases:
 - ✅ React frontend with Firebase SDK
 - ✅ Docker multi-container setup
 - ✅ Monorepo structure
-- ✅ Hot reload for rapid development
+- ✅ Hot reload for rapid frontend/API development
+- ✅ Consuming a published base image rather than forking it

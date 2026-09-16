@@ -1,0 +1,8 @@
+# Never ship a host-built node_modules into the image -- the Dockerfile
+# installs from the committed lockfile instead.
+functions/node_modules
+functions/npm-debug.log*
+
+# Emulator state written by a previous local run.
+data
+*-debug.log

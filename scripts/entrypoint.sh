@@ -9,7 +9,9 @@ echo "🌱 Checking if data needs to be seeded..."
 sleep 5
 
 PROJECT_ID="${FIREBASE_PROJECT_ID:-teamnotes-demo}"
-AUTH_HOST="${FIREBASE_AUTH_EMULATOR_HOST:-firebase-emulator:9099}"
+# 9100, not 9099: the emulator container fronts every emulator with the
+# docker-firebase-emulator image's nginx proxy on <real port> + 1.
+AUTH_HOST="${FIREBASE_AUTH_EMULATOR_HOST:-firebase-emulator:9100}"
 
 AUTH_USERS=$(curl -s "http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1/projects/${PROJECT_ID}/accounts" | grep -o '"users":\[' | wc -l)
 

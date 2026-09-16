@@ -9,15 +9,15 @@
     "firebase/functions"
   ],
   "scripts": {
-    "dev": "docker-compose up",
-    "dev:deamon": "docker-compose up -d",
-    "dev:build": "docker-compose up --build",
-    "dev:clean": "docker-compose down -v && rm -rf firebase/data",
-    "stop": "docker-compose down",
+    "dev": "docker compose up",
+    "dev:daemon": "docker compose up -d",
+    "dev:build": "docker compose up --build",
+    "dev:clean": "docker compose down -v",
+    "stop": "docker compose down",
     "seed": "node scripts/seed-data.js",
-    "logs:emulator": "docker-compose logs -f firebase-emulator",
-    "logs:api": "docker-compose logs -f api",
-    "logs:frontend": "docker-compose logs -f frontend",
+    "logs:emulator": "docker compose logs -f firebase-emulator",
+    "logs:api": "docker compose logs -f api",
+    "logs:frontend": "docker compose logs -f frontend",
     "lint:functions": "cd firebase/functions && npm run lint",
     "install:all": "npm install && npm install --prefix frontend && npm install --prefix api && npm install --prefix firebase/functions"
   },

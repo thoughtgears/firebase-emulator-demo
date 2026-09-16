@@ -1,33 +1,38 @@
-FROM node:24-alpine
+# The demo's emulator IS the published docker-firebase-emulator image.
+#
+# https://github.com/thoughtgears/docker-firebase-emulator
+#
+# Nothing about the emulator itself is reimplemented here: the base image
+# supplies Node 24 (alpine), the JRE the Firestore emulator needs,
+# firebase-tools, the nginx proxy and the /usr/bin/serve.sh entrypoint.
+# This Dockerfile only drops this demo's Firebase project into the place
+# that entrypoint expects (/srv/firebase) — so if a new version of the
+# image breaks its own contract, `docker compose up` here fails and we
+# find out before anyone else does.
+#
+# Pinned deliberately: the image publishes a version tag and `main`, but
+# no `latest`. Bump this line (and the README table) to move versions.
+FROM ghcr.io/thoughtgears/docker-firebase-emulator:15.30.1
 
-# Install Java (required for Firestore emulator)
-RUN apk add --no-cache openjdk21-jre bash curl
+WORKDIR /srv/firebase
 
-# Install Firebase CLI globally
-RUN npm install -g firebase-tools@15.30.1
-
-# Set working directory
-WORKDIR /firebase
-
-# Copy Firebase configuration files
+# Firebase project config. serve.sh runs `firebase emulators:start` with
+# /srv/firebase as its working directory, so firebase.json has to land here.
 COPY firebase.json .firebaserc firestore.rules firestore.indexes.json ./
 
-# Copy functions directory
+# Cloud Functions dependencies, installed at BUILD time from a committed
+# lockfile. serve.sh will also `npm install --prefix /srv/firebase/functions`
+# on start -- that is the image's own contract and it stays a no-op here.
+#
+# Installing at build time, into the image rather than into a mounted
+# volume, is what makes the fresh-install path safe: there is no
+# node_modules volume for docker-compose to create empty ahead of the
+# entrypoint, so there is no state in which the Functions emulator can
+# come up without firebase-functions on disk.
+COPY functions/package.json functions/package-lock.json ./functions/
+RUN npm ci --prefix ./functions
+
+# Function source. .dockerignore keeps any host-side node_modules out.
 COPY functions ./functions
 
-# Copy startup script
-COPY serve.sh ./serve.sh
-RUN chmod +x ./serve.sh
-
-# Create data directory structure for persistence
-RUN mkdir -p /firebase/data/export
-
-# Expose emulator ports
-EXPOSE 4000 4400 5001 5002 8080 9099
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:4000 || exit 1
-
-# Start Firebase emulator
-CMD ["./serve.sh"]
+# Entrypoint is inherited from the base image: /usr/bin/serve.sh.

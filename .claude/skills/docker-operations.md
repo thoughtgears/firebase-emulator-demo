@@ -1,6 +1,6 @@
 # Docker Operations Skill
 
-Use this skill when working with Docker and docker-compose operations.
+Use this skill when working with Docker Compose operations.
 
 ## Quick Start
 
@@ -30,57 +30,57 @@ The project runs 3 services in Docker:
 
 ### Start services
 ```bash
-docker-compose up
+docker compose up
 ```
 
 ### Start in detached mode
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Stop services
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ### Stop and remove volumes
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ### Rebuild specific service
 ```bash
-docker-compose up --build firebase-emulator
-docker-compose up --build api
-docker-compose up --build frontend
+docker compose up --build firebase-emulator
+docker compose up --build api
+docker compose up --build frontend
 ```
 
 ### View logs
 ```bash
 # All services
-docker-compose logs -f
+docker compose logs -f
 
 # Specific service
-docker-compose logs -f firebase-emulator
-docker-compose logs -f api
-docker-compose logs -f frontend
+docker compose logs -f firebase-emulator
+docker compose logs -f api
+docker compose logs -f frontend
 ```
 
 ### Execute command in container
 ```bash
-docker-compose exec firebase-emulator sh
-docker-compose exec api sh
-docker-compose exec frontend sh
+docker compose exec firebase-emulator sh
+docker compose exec api sh
+docker compose exec frontend sh
 ```
 
 ### Check service status
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 ### Restart single service
 ```bash
-docker-compose restart api
+docker compose restart api
 ```
 
 ## Health Checks
@@ -105,13 +105,17 @@ All services have health checks configured:
 Services communicate via `teamnotes-network`:
 
 - **Host → Services**: Uses localhost with exposed ports
-- **Service → Service**: Uses service names (e.g., `api` → `firebase-emulator:8080`)
+- **Service → Service**: Uses service names, and the emulator's **nginx ports**
+
+The emulator container runs the published `docker-firebase-emulator` image, whose
+nginx listens on each emulator's real port + 1 and proxies down to the emulator
+(bound on `127.0.0.1`). Container-to-container traffic therefore uses the + 1 port.
 
 Example internal URLs:
 ```
 frontend → api: http://api:3000 (not used, frontend runs in browser)
-api → firestore: firebase-emulator:8080
-api → auth: firebase-emulator:9099
+api → firestore: firebase-emulator:9081   # 8080 gRPC, via nginx grpc_pass
+api → auth: firebase-emulator:9100        # 9099 + 1
 ```
 
 ## Volumes
@@ -119,30 +123,41 @@ api → auth: firebase-emulator:9099
 ### Named Volumes (for performance)
 ```yaml
 volumes:
-  firebase_functions_node_modules:
   frontend_node_modules:
 ```
 
-These prevent syncing node_modules on Mac/Windows, improving performance.
+This prevents syncing the frontend's node_modules on Mac/Windows.
+
+There is deliberately **no** named volume for the functions' node_modules: compose
+creates a named volume as an empty directory before the container entrypoint runs, so
+an entrypoint that checks "does node_modules exist?" skips the install and the
+Functions emulator comes up with no dependencies. Functions deps are installed from a
+committed lockfile at image build time instead.
 
 ### Bind Mounts (for hot reload)
 ```yaml
 volumes:
   - ./frontend/src:/app/src           # Frontend source
-  - ./api/src:/app/src                 # API source
-  - ./firebase/functions:/firebase/functions  # Functions source
+  - ./api/src:/app/src                # API source
 ```
+
+The firebase-emulator service mounts nothing: its whole Firebase project is COPYed into
+the image, so `docker compose up` cannot write to the repo tree. Rebuild
+(`npm run dev:build`) after changing `firebase/`.
 
 ## Port Mapping
 
-| Service | Internal Port | External Port | Purpose |
+Container ports for the emulator are the nginx ports (real port + 1).
+
+| Service | Container port | Host port | Purpose |
 |---------|--------------|---------------|---------|
-| firebase-emulator | 4000 | 4000 | Emulator UI |
-| firebase-emulator | 4400 | 4400 | Emulator Hub |
-| firebase-emulator | 5001 | 5001 | Cloud Functions |
-| firebase-emulator | 5002 | 5002 | Hosting |
-| firebase-emulator | 8080 | 8080 | Firestore |
-| firebase-emulator | 9099 | 9099 | Auth |
+| firebase-emulator | 4001 | 4000 | Emulator UI |
+| firebase-emulator | 4401 | 4400 | Emulator Hub |
+| firebase-emulator | 4601 | 4600 | Logging |
+| firebase-emulator | 5002 | 5001 | Cloud Functions |
+| firebase-emulator | 8081 | 8080 | Firestore (HTTP) |
+| firebase-emulator | 9081 | 8082 | Firestore (gRPC) |
+| firebase-emulator | 9100 | 9099 | Auth |
 | api | 3000 | 3000 | REST API |
 | frontend | 5173 | 5173 | Vite dev server |
 
@@ -164,31 +179,31 @@ ports:
 ### Container won't start
 ```bash
 # View logs
-docker-compose logs firebase-emulator
+docker compose logs firebase-emulator
 
 # Check health
-docker-compose ps
+docker compose ps
 
 # Restart service
-docker-compose restart firebase-emulator
+docker compose restart firebase-emulator
 ```
 
 ### Changes not reflecting
 ```bash
 # Rebuild and restart
-docker-compose up --build
+docker compose up --build
 
 # For frontend/API, they mount source directly, so changes should reflect
 # If not, check volumes are mounted correctly
-docker-compose exec frontend ls -la /app/src
+docker compose exec frontend ls -la /app/src
 ```
 
 ### Clean slate
 ```bash
 # Remove everything
-docker-compose down -v
+docker compose down -v
 rm -rf firebase/data
-docker-compose up --build
+docker compose up --build
 ```
 
 ### Out of disk space
@@ -224,8 +239,8 @@ docker system prune -a --volumes
 
 3. **Debugging**:
    ```bash
-   docker-compose logs -f api        # View specific service logs
-   docker-compose exec api sh        # Shell into container
+   docker compose logs -f api        # View specific service logs
+   docker compose exec api sh        # Shell into container
    ```
 
 ## Environment Variables

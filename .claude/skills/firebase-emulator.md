@@ -2,6 +2,11 @@
 
 Use this skill when working with the Firebase emulator setup in this project.
 
+The emulator container builds `FROM ghcr.io/thoughtgears/docker-firebase-emulator`
+(see `firebase/Dockerfile`). Host ports below are the emulators' real ports; the
+container side of every mapping is + 1, because the image fronts every emulator with
+an nginx proxy. Changing anything under `firebase/` needs `npm run dev:build`.
+
 ## Commands
 
 ### Start the emulator suite
@@ -59,10 +64,10 @@ connectFirestoreEmulator(db, "localhost", 8080);
 ```
 
 ### API (Docker container)
-Uses service names for internal Docker networking:
+Uses service names plus the nginx ports for internal Docker networking:
 ```javascript
-FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
-FIRESTORE_EMULATOR_HOST=firebase-emulator:8080
+FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9100
+FIRESTORE_EMULATOR_HOST=firebase-emulator:9081
 ```
 
 ### Functions
@@ -70,21 +75,17 @@ Automatically connects to emulator when running via `firebase emulators:start`
 
 ## Data Persistence
 
-Emulator data is stored in `firebase/data/` and persists between restarts.
+The stack starts **empty** on every run and the seeder repopulates it, which keeps
+`docker compose up` read-only with respect to the repo working tree.
 
-To export current data manually:
-```bash
-firebase emulators:export firebase/data --project teamnotes-demo
-```
-
-To import data:
-```bash
-firebase emulators:start --import=firebase/data --project teamnotes-demo
-```
+Persistence is opt-in: set `DATA_DIRECTORY=data` on the `firebase-emulator` service
+and bind-mount `./firebase/data:/srv/firebase/data:rw`. The image's `serve.sh` then
+adds `--import=./data/export --export-on-exit`.
 
 ## Firestore Rules
 
-Rules are located at `firebase/firestore.rules` and are hot-reloaded.
+Rules are located at `firebase/firestore.rules`. They are COPYed into the image, so
+run `npm run dev:build` after changing them.
 
 Test rules in the Emulator UI: http://localhost:4000/firestore
 
@@ -92,10 +93,17 @@ Test rules in the Emulator UI: http://localhost:4000/firestore
 
 Functions are located in `firebase/functions/src/triggers/`
 
-They hot-reload when you modify JavaScript files.
+They are baked into the emulator image, so run `npm run dev:build` after changing them.
+
+**Gotcha:** inside the Functions emulator, `admin.firestore.FieldValue` (and
+`.Timestamp`, `.GeoPoint`, `.FieldPath`) are `undefined`. firebase-tools replaces the
+cached `firebase-admin` module with a proxy that returns `fn.bind(target)` for
+non-constructor functions, and a bound function keeps none of the original's own
+properties. Import from the modular entry point instead:
+`const { FieldValue } = require("firebase-admin/firestore");`
 
 View function logs:
-- Docker: `docker-compose logs -f firebase-emulator`
+- Docker: `docker compose logs -f firebase-emulator`
 - Emulator UI: http://localhost:4000/logs
 
 ## Common Issues
