@@ -5,6 +5,13 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# firebase/functions is bind-mounted read-write into the firebase-emulator
+# container so its code hot-reloads; serve.sh runs `npm install` there at
+# container start if deps are missing, which writes this lockfile straight
+# onto the host tree. No lockfile is committed for this workspace, so
+# ignore whatever `docker compose up` generates instead of committing it.
+firebase/functions/package-lock.json
+
 # Firebase
 firebase/data/*
 !firebase/data/export/

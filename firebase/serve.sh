@@ -28,8 +28,13 @@ fi
 
 log_info "Starting Firebase Emulator for project: $FIREBASE_PROJECT"
 
-# Install function dependencies if not already installed
-if [ ! -d "/firebase/functions/node_modules" ]; then
+# Install function dependencies if not already installed. Check for the
+# actual firebase-functions package rather than just the node_modules
+# directory: docker-compose.yml mounts node_modules as a named volume, and
+# Docker creates that directory empty before this script ever runs, so a
+# plain `-d` check always saw it as "already installed" on a brand new
+# volume and the Functions emulator silently ran with no dependencies.
+if [ ! -d "/firebase/functions/node_modules/firebase-functions" ]; then
   log_info "Installing function dependencies..."
   cd /firebase/functions
   npm install
